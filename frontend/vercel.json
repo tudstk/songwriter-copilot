@@ -1,0 +1,17 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/edit", "destination": "/edit.html" },
+    { "source": "/profile", "destination": "/community.html" },
+    { "source": "/home", "destination": "/community.html" },
+    { "source": "/users/:path*", "destination": "/community.html" },
+    { "source": "/songs/:path*", "destination": "/community.html" }
+  ],
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "dist" }
+    }
+  ]
+}
