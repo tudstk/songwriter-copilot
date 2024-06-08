@@ -1,112 +1,90 @@
-import glob
 import pickle
-import numpy
-from music21 import converter, instrument, note, chord
+import numpy as np
 from keras.models import Sequential
-from keras.layers import Dense
-from keras.layers import Dropout
-from keras.layers import LSTM
-from keras.layers import Activation
-from keras.layers import BatchNormalization as BatchNorm
+from keras.layers import Dense, Dropout, LSTM, BatchNormalization as BatchNorm
 from music21 import instrument, note, stream, chord
 
 
-
-def generate():
-    with open('./classical_model/notes', 'rb') as filepath:
-        notes = pickle.load(filepath)
-
-    name_of_pitch = sorted(set(item for item in notes))
-    n_vocab = len(set(notes))
-
-    inputs_model, normalized_input = prepare_sequences(notes, name_of_pitch, n_vocab)
-    model = create_network(normalized_input, n_vocab)
-    prediction_output = generate_notes(model, inputs_model, name_of_pitch, n_vocab)
-    create_midi(prediction_output)
+def load_notes(file_path):
+    with open(file_path, 'rb') as filepath:
+        return pickle.load(filepath)
 
 
-def prepare_sequences(notes, name_of_pitch, n_vocab):
-    note_to_int = dict((note, number) for number, note in enumerate(name_of_pitch))
-
-    sequence_length = 100
-    inputs_model = []
-    output = []
-    for i in range(0, len(notes) - sequence_length, 1):
-        sequence_in = notes[i:i + sequence_length]
-        sequence_out = notes[i + sequence_length]
-        inputs_model.append([note_to_int[char] for char in sequence_in])
-        output.append(note_to_int[sequence_out])
-
-    n_patterns = len(inputs_model)
-
-    normalized_input = numpy.reshape(inputs_model, (n_patterns, sequence_length, 1))
-    normalized_input = normalized_input / float(n_vocab)
-
-    return (inputs_model, normalized_input)
+def get_unique_notes(notes):
+    return sorted(set(notes))
 
 
-def create_network(inputs_model, n_vocab):
+def prepare_sequences(notes, unique_notes, sequence_length=100):
+    note_to_int = {note: number for number, note in enumerate(unique_notes)}
+    num_unique_notes = len(unique_notes)
+
+    input_sequences = []
+    output_notes = []
+    for i in range(len(notes) - sequence_length):
+        input_seq = notes[i:i + sequence_length]
+        output_note = notes[i + sequence_length]
+        input_sequences.append([note_to_int[note] for note in input_seq])
+        output_notes.append(note_to_int[output_note])
+
+    num_patterns = len(input_sequences)
+
+    normalized_inputs = np.reshape(input_sequences, (num_patterns, sequence_length, 1))
+    normalized_inputs = normalized_inputs / float(num_unique_notes)
+
+    return input_sequences, normalized_inputs, num_unique_notes
+
+
+def create_model(input_shape, num_unique_notes, genre):
     model = Sequential()
-    model.add(LSTM(
-        512,
-        input_shape=(inputs_model.shape[1], inputs_model.shape[2]),
-        recurrent_dropout=0.3,
-        return_sequences=True
-    ))
-    model.add(LSTM(512, return_sequences=True, recurrent_dropout=0.3,))
+    model.add(LSTM(512, input_shape=input_shape, recurrent_dropout=0.3, return_sequences=True))
+    model.add(LSTM(512, return_sequences=True, recurrent_dropout=0.3))
     model.add(LSTM(512))
     model.add(BatchNorm())
     model.add(Dropout(0.3))
-    model.add(Dense(256))
-    model.add(Activation('relu'))
+    model.add(Dense(256, activation='relu'))
     model.add(BatchNorm())
     model.add(Dropout(0.3))
-    model.add(Dense(n_vocab))
-    model.add(Activation('softmax'))
+    model.add(Dense(num_unique_notes, activation='softmax'))
     model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
-    model.load_weights('E:/Last Semester/Licenta/NewStuff/TryingStuff/classical_model/weights-improvement-194-0.0737-bigger.hdf5')
-
+    model.load_weights(
+        f'E:/Last Semester/Licenta/NewStuff/TryingStuff/trained_models/{genre}.hdf5')
     return model
 
 
-def generate_notes(model, inputs_model, name_of_pitch, n_vocab):
+def generate_notes(model, input_sequences, unique_notes, num_unique_notes, num_generate=500):
+    int_to_note = {number: note for number, note in enumerate(unique_notes)}
 
-    start = numpy.random.randint(0, len(inputs_model)-1)
-
-    int_to_note = dict((number, note) for number, note in enumerate(name_of_pitch))
-
-    pattern = inputs_model[start]
+    start_index = np.random.randint(0, len(input_sequences) - 1)
+    pattern = input_sequences[start_index]
     prediction_output = []
 
-    # generate 500 notes
-    for note_index in range(500):
-        prediction_input = numpy.reshape(pattern, (1, len(pattern), 1))
-        prediction_input = prediction_input / float(n_vocab)
+    for _ in range(num_generate):
+        prediction_input = np.reshape(pattern, (1, len(pattern), 1))
+        prediction_input = prediction_input / float(num_unique_notes)
 
         prediction = model.predict(prediction_input, verbose=0)
-
-        index = numpy.argmax(prediction)
+        index = np.argmax(prediction)
         result = int_to_note[index]
         prediction_output.append(result)
 
         pattern.append(index)
-        pattern = pattern[1:len(pattern)]
+        pattern = pattern[1:]
 
     return prediction_output
 
-def create_midi(prediction_output):
+
+def create_midi(prediction_output, genre):
     offset = 0
     output_notes = []
+    output_file = f'{genre}.mid'
 
     for pattern in prediction_output:
-        if ('.' in pattern) or pattern.isdigit():
+        if '.' in pattern or pattern.isdigit():
             notes_in_chord = pattern.split('.')
-            notes = []
-            for current_note in notes_in_chord:
-                new_note = note.Note(int(current_note))
-                new_note.storedInstrument = instrument.Piano()
-                notes.append(new_note)
-            new_chord = chord.Chord(notes)
+            chord_notes = [note.Note(int(n)) for n in notes_in_chord]
+            for n in chord_notes:
+                n.storedInstrument = instrument.Piano()
+            new_chord = chord.Chord(chord_notes)
             new_chord.offset = offset
             output_notes.append(new_chord)
         else:
@@ -118,7 +96,25 @@ def create_midi(prediction_output):
         offset += 0.5
 
     midi_stream = stream.Stream(output_notes)
+    key_signature = midi_stream.analyze('key')
+    key_signature_str = str(key_signature)
+    print(f"Key of the generated melody: {key_signature_str}")
 
-    midi_stream.write('midi', fp='33.mid')
+    file_path = f"generated_music/{output_file}"
+    midi_stream.write('midi', fp=file_path)
+    return file_path, key_signature_str
 
-generate()
+
+def generate_music(genre):
+    print("Generating music...")
+    notes = load_notes(f'./{genre}_model/notes')
+    unique_notes = get_unique_notes(notes)
+    input_sequences, normalized_inputs, num_unique_notes = prepare_sequences(notes, unique_notes)
+    model = create_model((normalized_inputs.shape[1], normalized_inputs.shape[2]), num_unique_notes, genre)
+    prediction_output = generate_notes(model, input_sequences, unique_notes, num_unique_notes)
+    file_path, key_signature_str = create_midi(prediction_output, genre)
+    return file_path, key_signature_str
+
+
+if __name__ == "__main__":
+    file_path, key_signature = generate_music('rock')
