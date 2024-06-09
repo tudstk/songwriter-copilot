@@ -4,6 +4,8 @@ from keras.models import Sequential
 from keras.layers import Dense, Dropout, LSTM, BatchNormalization as BatchNorm
 from music21 import instrument, note, stream, chord
 
+PATH = 'E:/Last Semester/Licenta/licenta-repo/songwriter-copilot/backend/supervised'
+
 
 def load_notes(file_path):
     with open(file_path, 'rb') as filepath:
@@ -47,7 +49,7 @@ def create_model(input_shape, num_unique_notes, genre):
     model.add(Dense(num_unique_notes, activation='softmax'))
     model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
     model.load_weights(
-        f'E:/Last Semester/Licenta/NewStuff/TryingStuff/trained_models/{genre}.hdf5')
+        f'{PATH}/trained_models/{genre}.hdf5')
     return model
 
 
@@ -100,14 +102,14 @@ def create_midi(prediction_output, genre):
     key_signature_str = str(key_signature)
     print(f"Key of the generated melody: {key_signature_str}")
 
-    file_path = f"generated_music/{output_file}"
+    file_path = f"{PATH}/generated_music/{output_file}"
     midi_stream.write('midi', fp=file_path)
     return file_path, key_signature_str
 
 
 def generate_music(genre):
     print("Generating music...")
-    notes = load_notes(f'./{genre}_model/notes')
+    notes = load_notes(f'{PATH}/notes/{genre}')
     unique_notes = get_unique_notes(notes)
     input_sequences, normalized_inputs, num_unique_notes = prepare_sequences(notes, unique_notes)
     model = create_model((normalized_inputs.shape[1], normalized_inputs.shape[2]), num_unique_notes, genre)

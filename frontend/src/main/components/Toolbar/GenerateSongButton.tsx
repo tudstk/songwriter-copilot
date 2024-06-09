@@ -22,12 +22,35 @@ const DarkSelect = styled.select`
     }
 `;
 
+const CloseButton = styled.button`
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-left: 0.5rem;
+
+  &:hover {
+    color: gray;
+  }
+`;
+
 export const GenerateSongButton: FC = () => {
   const rootStore = useStores();
   const toast = useToast();
   const [selectedGenre, setSelectedGenre] = useState("rock");
   const [loading, setLoading] = useState(false);
   const [keySignature, setKeySignature] = useState("");
+  const [showOptions, setShowOptions] = useState(false); // New state for showing options
+
+  const handleInitialClick = () => {
+    setShowOptions(true);
+  };
+
+  const handleCloseClick = () => {
+    setShowOptions(false);
+    setKeySignature("");
+  };
 
   const handleClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
@@ -75,20 +98,30 @@ export const GenerateSongButton: FC = () => {
   return (
     <Tooltip title={<Localized default="Auto-Scroll">auto-scroll</Localized>}>
       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
-        {!loading && (
-          <DarkSelect value={selectedGenre} onChange={handleGenreChange}>
-            <option value="rock">Rock</option>
-            <option value="poprock">Pop-Rock</option>
-            <option value="classical">Classical</option>
-            <option value="trap">Trap</option>
-            <option value="lofi">Lofi</option>
-          </DarkSelect>
+        {!showOptions && (
+          <ToolbarButton onMouseDown={handleInitialClick}>
+            Generate Song
+          </ToolbarButton>
         )}
-        <ToolbarButton onMouseDown={handleClick} >
-          {loading ? "Loading..." : "Generate"}
-        </ToolbarButton>
-        {keySignature}
-        {keySignature && <span style={{ marginLeft: '0.5rem' }}>Key: {keySignature}</span>}
+        {showOptions && (
+          <>
+            {!loading && (
+              <DarkSelect value={selectedGenre} onChange={handleGenreChange}>
+                <option value="rock">Rock</option>
+                <option value="poprock">Pop-Rock</option>
+                <option value="classical">Classical</option>
+                <option value="trap">Trap</option>
+                <option value="lofi">Lofi</option>
+              </DarkSelect>
+            )}
+            <ToolbarButton onMouseDown={handleClick}>
+              {loading ? "Loading..." : "Generate"}
+            </ToolbarButton>
+            {keySignature}
+            {keySignature && <span style={{ marginLeft: '0.5rem' }}>Key: {keySignature}</span>}
+            <CloseButton onMouseDown={handleCloseClick}>×</CloseButton>
+          </>
+        )}
       </div>
     </Tooltip>
   );

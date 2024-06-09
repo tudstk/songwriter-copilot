@@ -14,6 +14,7 @@ import { PanSlider } from "./PanSlider"
 import { PianoRollToolSelector } from "./PianoRollToolSelector"
 import { TrackNameInput } from "./TrackNameInput"
 import { VolumeSlider } from "./VolumeSlider"
+import { GenerateMusicIdeaButton } from "../Toolbar/GenerateMusicIdeaButton"
 
 const Spacer = styled.div`
   width: 1rem;
@@ -72,6 +73,7 @@ export const PianoRollToolbar: FC = observer(() => {
       <GenerateSongButton/>
 
       <FlexibleSpacer />
+      <GenerateMusicIdeaButton/>
 
       <PianoRollToolSelector />
 
@@ -81,7 +83,6 @@ export const PianoRollToolbar: FC = observer(() => {
         onSelect={onSelectQuantize}
         onClickSwitch={onClickQuantizeSwitch}
       />
-
       <AutoScrollButton onClick={onClickAutoScroll} selected={autoScroll} />
     </Toolbar>
   )

@@ -1,6 +1,6 @@
 from flask import Flask, send_file, make_response, request, jsonify
 from flask_cors import CORS
-from gen import generate_music
+from supervised.gen import generate_music
 
 app = Flask(__name__)
 CORS(app)
