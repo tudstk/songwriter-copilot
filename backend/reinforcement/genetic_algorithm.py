@@ -1,27 +1,26 @@
+import os
 from random import choices, randint, randrange, random, sample
-from utils import create_melody, create_events
+from .utils import create_melody, create_events, save_genome_to_midi
 import random
 import time
 
 SCALES = ["major", "minorM", "dorian", "phrygian", "lydian", "mixolydian", "majorBlues", "minorBlues"]
 
 
-def initialize_population(size, genome_length):
-    return [generate_genome(genome_length) for _ in range(size)]
-
-
 def generate_genome(length):
     return choices([0, 1], k=length)
+
+
+def initialize_population(size, genome_length):
+    return [generate_genome(genome_length) for _ in range(size)]
 
 
 def single_point_crossover(a, b):
     if len(a) != len(b):
         raise ValueError("Genomes a and b must be of same length")
-
     length = len(a)
     if length < 2:
         return a, b
-
     p = randint(1, length - 1)
     return a[0:p] + b[p:], b[0:p] + a[p:]
 
@@ -42,10 +41,8 @@ def selection_pair(population, fitness_func):
 
 def generate_weighted_distribution(population, fitness_func):
     result = []
-
     for gene in population:
         result += [gene] * int(fitness_func(gene) + 1)
-
     return result
 
 
@@ -80,22 +77,15 @@ def run_evolution(population_size, genome_length, fitness_func, num_mutations, m
         population_id += 1
 
 
-def fitness_rating_mode(genome, s, bars, num_notes, num_steps, pauses, key, scale, root, bpm):
+def fitness_rating_mode(genome, s, bars, num_notes, num_steps, pauses, key, scale, root, bpm, rating):
     events = create_events(genome, bars, num_notes, num_steps, pauses, key, scale, root, bpm)
     for e in events:
         e.play()
     s.start()
-    rating = input("Rating (0-5)")
     for e in events:
         e.stop()
     s.stop()
     time.sleep(1)
-
-    try:
-        rating = int(rating)
-    except ValueError:
-        rating = 0
-
     return rating
 
 

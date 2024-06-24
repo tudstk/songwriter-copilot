@@ -18,6 +18,7 @@ const _ToolbarButton = styled.button<{ selected?: boolean }>`
   border-radius: 999px;
   cursor: pointer;
   outline: none;
+    margin-right: 1rem;
 
   &:hover {
     background: ${({ theme, selected }) =>

@@ -53,7 +53,7 @@ def create_model(input_shape, num_unique_notes, genre):
     return model
 
 
-def generate_notes(model, input_sequences, unique_notes, num_unique_notes, num_generate=500):
+def generate_notes(model, input_sequences, unique_notes, num_unique_notes, num_generate=100):
     int_to_note = {number: note for number, note in enumerate(unique_notes)}
 
     start_index = np.random.randint(0, len(input_sequences) - 1)
@@ -119,4 +119,4 @@ def generate_music(genre):
 
 
 if __name__ == "__main__":
-    file_path, key_signature = generate_music('rock')
+    file_path, key_signature = generate_music('classical')

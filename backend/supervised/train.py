@@ -56,7 +56,7 @@ def prepare_sequences(notes, sequence_length=100):
 
     num_patterns = len(input_sequences)
     normalized_inputs = (np.reshape(input_sequences,
-                          (num_patterns, sequence_length, 1)) / float(num_unique_notes))
+                                    (num_patterns, sequence_length, 1)) / float(num_unique_notes))
     categorical_outputs = np_utils.to_categorical(output_notes)
 
     return normalized_inputs, categorical_outputs, num_unique_notes
