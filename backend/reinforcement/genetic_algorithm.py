@@ -1,26 +1,28 @@
-import os
-from random import choices, randint, randrange, random, sample
-from .utils import create_melody, create_events, save_genome_to_midi
-import random
-import time
+from random import choices, randint, randrange, sample
+import random as rand
+from reinforcement.utils import create_melody
 
+
+KEYS = ["C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B"]
 SCALES = ["major", "minorM", "dorian", "phrygian", "lydian", "mixolydian", "majorBlues", "minorBlues"]
-
-
-def generate_genome(length):
-    return choices([0, 1], k=length)
 
 
 def initialize_population(size, genome_length):
     return [generate_genome(genome_length) for _ in range(size)]
 
 
+def generate_genome(length):
+    return choices([0, 1], k=length)
+
+
 def single_point_crossover(a, b):
     if len(a) != len(b):
         raise ValueError("Genomes a and b must be of same length")
+
     length = len(a)
     if length < 2:
         return a, b
+
     p = randint(1, length - 1)
     return a[0:p] + b[p:], b[0:p] + a[p:]
 
@@ -28,7 +30,7 @@ def single_point_crossover(a, b):
 def mutation(genome, num=1, probability=0.5):
     for _ in range(num):
         index = randrange(len(genome))
-        genome[index] = genome[index] if random() > probability else abs(genome[index] - 1)
+        genome[index] = genome[index] if rand.random() > probability else abs(genome[index] - 1)
     return genome
 
 
@@ -42,8 +44,22 @@ def selection_pair(population, fitness_func):
 def generate_weighted_distribution(population, fitness_func):
     result = []
     for gene in population:
-        result += [gene] * int(fitness_func(gene) + 1)
+        # Convert gene (list) to a tuple to make it hashable
+        fitness_score = fitness_func(tuple(gene))
+        result += [gene] * int(fitness_score + 1)
     return result
+
+
+def generate_next_generation(population, population_fitness, num_mutations, mutation_probability):
+    next_generation = population[:2]
+    fitness_dict = {tuple(g): fitness for g, fitness in population_fitness}
+    for _ in range((len(population) // 2) - 1):
+        parents = selection_pair(population, fitness_dict.get)
+        offspring_a, offspring_b = single_point_crossover(parents[0], parents[1])
+        offspring_a = mutation(offspring_a, num=num_mutations, probability=mutation_probability)
+        offspring_b = mutation(offspring_b, num=num_mutations, probability=mutation_probability)
+        next_generation.extend([offspring_a, offspring_b])
+    return next_generation
 
 
 def evaluate_population(population, fitness_func, *args):
@@ -52,24 +68,13 @@ def evaluate_population(population, fitness_func, *args):
     return [e[0] for e in sorted_population_fitness], population_fitness
 
 
-def generate_next_generation(population, population_fitness, num_mutations, mutation_probability):
-    next_generation = population[:2]
-    for _ in range((len(population) // 2) - 1):
-        parents = selection_pair(population, dict(population_fitness).get)
-        offspring_a, offspring_b = single_point_crossover(parents[0], parents[1])
-        offspring_a = mutation(offspring_a, num=num_mutations, probability=mutation_probability)
-        offspring_b = mutation(offspring_b, num=num_mutations, probability=mutation_probability)
-        next_generation.extend([offspring_a, offspring_b])
-    return next_generation
-
-
 def run_evolution(population_size, genome_length, fitness_func, num_mutations, mutation_probability, *fitness_args):
     population = initialize_population(population_size, genome_length)
     population_id = 0
     running = True
 
     while running:
-        random.shuffle(population)
+        rand.shuffle(population)
         population, population_fitness = evaluate_population(population, fitness_func, *fitness_args)
         next_generation = generate_next_generation(population, population_fitness, num_mutations, mutation_probability)
         yield population_id, population, next_generation, population_fitness
@@ -77,19 +82,7 @@ def run_evolution(population_size, genome_length, fitness_func, num_mutations, m
         population_id += 1
 
 
-def fitness_rating_mode(genome, s, bars, num_notes, num_steps, pauses, key, scale, root, bpm, rating):
-    events = create_events(genome, bars, num_notes, num_steps, pauses, key, scale, root, bpm)
-    for e in events:
-        e.play()
-    s.start()
-    for e in events:
-        e.stop()
-    s.stop()
-    time.sleep(1)
-    return rating
-
-
-def fitness_automated(genome, s, bars, num_notes, num_steps, pauses, key, scale, root, bpm):
+def fitness_automated(genome, bars, num_notes, num_steps, pauses, key, scale, root):
     melody = create_melody(genome, bars, num_notes, num_steps, pauses, key, scale, root)
     all_notes = [note for step in melody["notes"] for note in step]
     pitch_range = max(all_notes) - min(all_notes)

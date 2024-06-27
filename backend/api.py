@@ -1,17 +1,25 @@
+import logging
 from flask import Flask, send_file, make_response, request, jsonify
 from flask_cors import CORS
 from datetime import datetime
-import os
 from supervised.gen import generate_music
-from reinforcement.main import run_genetic_algorithm
 from reinforcement.utils import save_genome_to_midi
+from reinforcement.genetic_algorithm import fitness_automated, run_evolution
+from pyo import *
+import os
+import asyncio
+os.environ['PYTHONUNBUFFERED'] = '1'
+
 
 app = Flask(__name__)
 CORS(app)
 
-# Define a global dictionary to store ratings temporarily
-# Key: filename, Value: rating
-ratings_dict = {}
+DEFAULT_NUM_MUTATIONS = 2
+DEFAULT_MUTATION_PROBABILITY = 0.5
+DEFAULT_BPM = 120
+BITS_PER_NOTE = 4
+
+ratings = {}
 
 
 @app.route('/get_midi_file', methods=['GET'])
@@ -45,6 +53,7 @@ def send_genome():
     else:
         return "Failed to generate MIDI file", 500
 
+
 @app.route('/generate_custom_melody', methods=['POST'])
 def generate_custom_melody():
     data = request.json
@@ -55,32 +64,48 @@ def generate_custom_melody():
     key = data.get('key', 'C')
     scale = data.get('scale', 'major')
     root = int(data.get('root', 4))
-    population_size = int(data.get('population_size', 3))
+    population_size = int(data.get('population_size', 4))
+    print("population size:", population_size)
     fitness_choice = data.get('fitness_choice', 'rating')
-    initial_rating = int(data.get('rating', 0))
 
-    global ratings_dict, folder
-    ratings_dict = {}
+    global folder
+    num_mutations = DEFAULT_NUM_MUTATIONS
+    mutation_probability = DEFAULT_MUTATION_PROBABILITY
+    bpm = DEFAULT_BPM
+    fitness_func = fitness_automated if fitness_choice == 'a' else fitness_rating_mode
+
     folder = str(int(datetime.now().timestamp()))
     os.makedirs(folder, exist_ok=True)
-    for population_id, population, next_generation, population_fitness in run_genetic_algorithm(
-            bars, num_notes, num_steps, pauses, key, scale, root, population_size, fitness_choice, initial_rating
+    genome_length = bars * num_notes * BITS_PER_NOTE
+    s = Server().boot()
+    for population_id, population, next_generation, population_fitness in run_evolution(
+            population_size, genome_length, fitness_func, num_mutations, mutation_probability, bars,
+            num_notes, num_steps, pauses, key, scale, root, bpm
     ):
+        print(f"Population {population_id} done")
+
+        print("Saving results...")
         for i, genome in enumerate(population):
-            filename = f"{folder}/{scale}-{key}-{i}.mid"
-            save_genome_to_midi(filename, genome, bars, num_notes, num_steps, pauses, key, scale, root, 120)
+            save_genome_to_midi(f"{folder}/{population_id}/{scale}-{key}-{i}.mid", genome, bars, num_notes, num_steps,
+                                pauses, key, scale, root, bpm)
+        print("Done!")
 
-            # Store initial rating (0) for each generated MIDI file
-            ratings_dict[filename] = initial_rating
-
-    midi_files = [os.path.join(folder, f) for f in os.listdir(folder) if f.endswith('.mid')]
-    print(ratings_dict)
-    return jsonify(midi_files)
+        running = input("Continue? [Y/n]") != "n"
+        if not running:
+            break
 
 
-@app.route('/download_midi/<path:filename>', methods=['GET'])
-def download_midi(filename):
-    return send_file(filename, as_attachment=True)
+def fitness_rating_mode(genome, bars, num_notes, num_steps, pauses, key, scale, root, population):
+    if ratings:
+        min_key = min(ratings.keys(), key=lambda x: int(x.split('-')[-1].split('.')[0]))
+        min_value = ratings[min_key]
+        del ratings[min_key]
+        print(f"Smallest index key found: {min_key}")
+        print(f"Corresponding value: {min_value}")
+        return min_value
+    else:
+        print("Dictionary 'ratings' is empty.")
+        return 0
 
 
 @app.route('/rate_melody', methods=['POST'])
@@ -89,13 +114,13 @@ def rate_melody():
         data = request.json
         filename = data.get('filename')
         rating = int(data.get('rating'))
-
-        # Update the rating for the specified filename
-        ratings_dict[filename] = rating
-
         print(f"Melody {filename}: Rating: {rating}")
+        ratings[filename] = rating
+        print(ratings)
+
         return jsonify({'success': True})
     except Exception as e:
+        logging.error(f"Error rating melody: {e}")
         return jsonify({'error': str(e)}), 500
 
 

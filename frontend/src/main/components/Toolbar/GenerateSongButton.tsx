@@ -57,7 +57,7 @@ export const GenerateSongButton: FC = () => {
     console.log('Button clicked');
     try {
       setLoading(true);
-      const response = await fetch(`http://127.0.0.1:5000/get_midi_file?genre=${selectedGenre}`);
+      const response = await fetch(`http://localhost:8000/get_midi_file?genre=${selectedGenre}`);
       if (!response.ok) {
         throw new Error('Failed to fetch MIDI file');
       }

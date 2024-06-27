@@ -86,7 +86,7 @@ export const GenerateMusicIdeaButton: FC = () => {
   const [midiFiles, setMidiFiles] = useState<string[]>([]);
   const [generationIndex, setGenerationIndex] = useState(0);
   const [genomeIndex, setGenomeIndex] = useState(0);
-
+  const [startRatingClicked, setStartRatingClicked] = useState(false);
   const handleInitialClick = () => {
     setShowOptions(true);
   };
@@ -97,6 +97,30 @@ export const GenerateMusicIdeaButton: FC = () => {
     setCurrentStep(0);
   };
 
+
+  const startRating = async (e: React.MouseEvent<HTMLButtonElement>) => {
+
+    setStartRatingClicked(true);
+    e.preventDefault()
+
+    console.log("ok")
+    const response = await fetch(`http://127.0.0.1:5000/get_genome?scale=${scale}&key=${key}&genome_index=0&generation_index=0`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch MIDI file');
+    }
+
+    const midiBlob = await response.blob();
+    const filename = `${scale}-${key}-0.mid`;
+    const file = new File([midiBlob], filename, { type: 'audio/midi' });
+
+    try {
+      console.log("SUNT IN TRY")
+      await getSong(rootStore)(file);
+      setGenomeIndex(genomeIndex + 1);
+    } catch (e) {
+      console.error((e as Error).message);
+    }
+  }
   const handleClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     if (!generatedClicked) {
@@ -139,33 +163,33 @@ export const GenerateMusicIdeaButton: FC = () => {
         }
         const midiBlob = await response.blob();
         const filename = `${scale}-${key}-${genomeIndex}.mid`;
-        const url = window.URL.createObjectURL(midiBlob);
         const file = new File([midiBlob], filename, { type: 'audio/midi' });
-        const a = document.createElement('a');
-
-        a.style.display = 'none';
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
 
         try {
           console.log("genome index 1 ", genomeIndex)
           console.log("generation index 1", generationIndex)
+
           await getSong(rootStore)(file);
-          if(genomeIndex == populationSize) {
+          if (genomeIndex == populationSize - 1) {
+            console.log("dimensiunea populatiei", populationSize)
+            console.log("genome index", genomeIndex)
             setGenerationIndex(generationIndex + 1);
             setGenomeIndex(0);
+          } else{
+            setGenomeIndex(genomeIndex + 1);
           }
-          setGenomeIndex(genomeIndex + 1);
-
-          console.log("genome index 2", genomeIndex)
-          console.log("generation index 2", generationIndex)
-          const ratingResponse = await fetch(`http://127.0.0.1:5000/rate_melody?filename=${filename}&rating=${rating}`);
+          const ratingResponse = await fetch(`http://127.0.0.1:5000/rate_melody`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              filename: filename,
+              rating: rating,
+            }),
+          });
           if (!ratingResponse.ok) {
-            throw new Error('Failed to fetch MIDI file');
+            throw new Error('Failed to send rating');
           }
           console.log('Rating sent', rating);
         } catch (e) {
@@ -175,7 +199,6 @@ export const GenerateMusicIdeaButton: FC = () => {
         console.error('Error opening MIDI file:', error);
       }
     }
-
   };
 
   const nextStep = () => {
@@ -323,28 +346,40 @@ export const GenerateMusicIdeaButton: FC = () => {
         )}
         {generatedClicked && (
           <>
-            <Label htmlFor="ratingInput">Rating</Label>
-            <Select
-              id="ratingInput"
-              value={rating}
-              onChange={(e) => setRating(parseInt(e.target.value))}
-            >
-              {[0, 1, 2, 3, 4, 5].map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </Select>
-            <ToolbarButton onMouseDown={handleClick}>
-              Send
-            </ToolbarButton>
-            <div>
-              {midiFiles.map((file, index) => (
-                <div key={index}>
-                  <a href={`http://127.0.0.1:5000/download_midi/${file}`} download>Download MIDI {index + 1}</a>
-                </div>
-              ))}
-            </div>
+            {
+              !startRatingClicked ? (
+                <ToolbarButton onMouseDown={startRating}>
+                  Start Rating
+                </ToolbarButton>
+              ) : (
+                <>
+                  <Label htmlFor="ratingInput">Rating</Label>
+                  <Select
+                    id="ratingInput"
+                    value={rating}
+                    onChange={(e) => setRating(parseInt(e.target.value))}
+                  >
+                    {[0, 1, 2, 3, 4, 5].map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </Select>
+                  <ToolbarButton onMouseDown={handleClick}>
+                    Send
+                  </ToolbarButton>
+                  <div>
+                    {midiFiles.map((file, index) => (
+                      <div key={index}>
+                        <a href={`http://127.0.0.1:5000/download_midi/${file}`} download>Download MIDI {index + 1}</a>
+                      </div>
+                    ))}
+                  </div>
+                </>
+
+              )
+            }
+
           </>
         )}
       </div>
