@@ -64,6 +64,7 @@ const steps = [
   "Scale",
   "Root",
   "Population size",
+  "Generation Number",
   "Fitness Choice"
 ];
 
@@ -76,8 +77,8 @@ export const GenerateMusicIdeaButton: FC = () => {
   const [key, setKey] = useState("C");
   const [scale, setScale] = useState("major");
   const [root, setRoot] = useState(4);
-  const [populationSize, setPopulationSize] = useState(3);
-  const [fitnessChoice, setFitnessChoice] = useState("rating");
+  const [populationSize, setPopulationSize] = useState(4);
+  const [fitnessChoice, setFitnessChoice] = useState('Automated');
   const [currentStep, setCurrentStep] = useState(0);
   const [keySignature, setKeySignature] = useState("");
   const [showOptions, setShowOptions] = useState(false);
@@ -87,6 +88,7 @@ export const GenerateMusicIdeaButton: FC = () => {
   const [generationIndex, setGenerationIndex] = useState(0);
   const [genomeIndex, setGenomeIndex] = useState(0);
   const [startRatingClicked, setStartRatingClicked] = useState(false);
+  const [numberOfGenerations, setNumberOfGenerations] = useState(10);
   const handleInitialClick = () => {
     setShowOptions(true);
   };
@@ -98,34 +100,79 @@ export const GenerateMusicIdeaButton: FC = () => {
   };
 
 
-  const startRating = async (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleAutomatedFitnessSteps = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    setStartRatingClicked(true);
+    e.preventDefault();
+
+    const fetchUrl = `http://127.0.0.1:5000/get_best_genome?generation_index=${generationIndex}`;
+
+    try {
+      const response = await fetch(fetchUrl);
+      if (!response.ok) {
+        throw new Error('Failed to fetch MIDI file');
+      }
+
+      const midiBlob = await response.blob();
+      const filename = `best.mid`;
+      const file = new File([midiBlob], filename, { type: 'audio/midi' });
+
+      console.log("SUNT IN TRY");
+      await getSong(rootStore)(file);
+      setGenomeIndex(genomeIndex + 1);
+      setGenerationIndex(generationIndex + 1)
+    } catch (error) {
+      console.error((error as Error).message);
+    }
+  };
+
+  const startRating = async (e: React.MouseEvent<HTMLButtonElement>) =>  {
 
     setStartRatingClicked(true);
     e.preventDefault()
+    if(fitnessChoice === 'Rating'){
+      const response = await fetch(`http://127.0.0.1:5000/get_genome?scale=${scale}&key=${key}&genome_index=0&generation_index=0`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch MIDI file');
+      }
+      const midiBlob = await response.blob();
+      const filename = `${scale}-${key}-0.mid`;
+      const file = new File([midiBlob], filename, { type: 'audio/midi' });
 
-    console.log("ok")
-    const response = await fetch(`http://127.0.0.1:5000/get_genome?scale=${scale}&key=${key}&genome_index=0&generation_index=0`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch MIDI file');
+      try {
+        console.log("SUNT IN TRY")
+        await getSong(rootStore)(file);
+        // setGenomeIndex(genomeIndex + 1);
+      } catch (e) {
+        console.error((e as Error).message);
+      }
     }
+    else
+    {
+      const response = await fetch(`http://127.0.0.1:5000/get_best_genome?generation_index=0`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch MIDI file');
+      }
+      const midiBlob = await response.blob();
+      const filename = `best.mid`;
+      const file = new File([midiBlob], filename, { type: 'audio/midi' });
 
-    const midiBlob = await response.blob();
-    const filename = `${scale}-${key}-0.mid`;
-    const file = new File([midiBlob], filename, { type: 'audio/midi' });
-
-    try {
-      console.log("SUNT IN TRY")
-      await getSong(rootStore)(file);
-      setGenomeIndex(genomeIndex + 1);
-    } catch (e) {
-      console.error((e as Error).message);
+      try {
+        await getSong(rootStore)(file);
+        setGenomeIndex(genomeIndex + 1);
+        setGenerationIndex(generationIndex + 1)
+      } catch (e) {
+        console.error((e as Error).message);
+      }
     }
   }
+
   const handleClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     if (!generatedClicked) {
       setGeneratedClicked(true);
+
       console.log('Generate button clicked');
+      console.log('Fitness Choice:', fitnessChoice)
       try {
         const generateMelodyResponse = await fetch(`http://127.0.0.1:5000/generate_custom_melody`, {
           method: 'POST',
@@ -141,7 +188,8 @@ export const GenerateMusicIdeaButton: FC = () => {
             scale: scale,
             root: root,
             population_size: populationSize,
-            fitness_choice: fitnessChoice === 'Automated' ? 'a' : 'rating',
+            number_of_generations:numberOfGenerations,
+            fitness_choice: fitnessChoice,
           }),
         });
         if (!generateMelodyResponse.ok) {
@@ -153,7 +201,10 @@ export const GenerateMusicIdeaButton: FC = () => {
       } catch (error) {
         console.error(error);
       }
-    } else {
+    } else if(fitnessChoice === 'Feedback'){
+      setShowOptions(false);
+      setKeySignature("");
+      setCurrentStep(0);
       e.preventDefault();
       console.log('Button clicked');
       try {
@@ -166,13 +217,8 @@ export const GenerateMusicIdeaButton: FC = () => {
         const file = new File([midiBlob], filename, { type: 'audio/midi' });
 
         try {
-          console.log("genome index 1 ", genomeIndex)
-          console.log("generation index 1", generationIndex)
-
           await getSong(rootStore)(file);
           if (genomeIndex == populationSize - 1) {
-            console.log("dimensiunea populatiei", populationSize)
-            console.log("genome index", genomeIndex)
             setGenerationIndex(generationIndex + 1);
             setGenomeIndex(0);
           } else{
@@ -192,6 +238,33 @@ export const GenerateMusicIdeaButton: FC = () => {
             throw new Error('Failed to send rating');
           }
           console.log('Rating sent', rating);
+        } catch (e) {
+          console.error((e as Error).message);
+        }
+      } catch (error) {
+        console.error('Error opening MIDI file:', error);
+      }
+    }
+    else{
+      setShowOptions(false);
+      setKeySignature("");
+      setCurrentStep(0);
+      e.preventDefault();
+      console.log('Button clicked');
+      try {
+        const response = await fetch(`http://127.0.0.1:5000/get_best_genome?generation_index=${generationIndex}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch MIDI file');
+        }
+        const midiBlob = await response.blob();
+        const filename = `best.mid`;
+        const file = new File([midiBlob], filename, { type: 'audio/midi' });
+
+        try {
+          await getSong(rootStore)(file);
+          if (genomeIndex == populationSize - 1) {
+            setGenerationIndex(generationIndex + 1);
+          }
         } catch (e) {
           console.error((e as Error).message);
         }
@@ -273,7 +346,7 @@ export const GenerateMusicIdeaButton: FC = () => {
           <>
             <Label htmlFor="scaleInput">Scale</Label>
             <Select id="scaleInput" value={scale} onChange={(e) => setScale(e.target.value)}>
-              {["major", "minor", "dorian", "phrygian", "lydian", "mixolydian", "majorBlues", "minorBlues"].map(s => (
+              {["major", "minorM", "dorian", "phrygian", "lydian", "mixolydian", "majorBlues", "minorBlues"].map(s => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </Select>
@@ -301,9 +374,23 @@ export const GenerateMusicIdeaButton: FC = () => {
               id="populationInput"
               type="number"
               min="1"
-              max="20"
+              max="200"
               value={populationSize}
               onChange={(e) => setPopulationSize(parseInt(e.target.value, 10))}
+            />
+          </>
+        );
+      case "Generation Number":
+        return (
+          <>
+            <Label htmlFor="generationInput">Number of Generations</Label>
+            <DarkInput
+              id="generationInput"
+              type="number"
+              min="1"
+              max="100"
+              value={numberOfGenerations}
+              onChange={(e) => setNumberOfGenerations(parseInt(e.target.value, 10))}
             />
           </>
         );
@@ -340,7 +427,6 @@ export const GenerateMusicIdeaButton: FC = () => {
                 Generate
               </ToolbarButton>
             )}
-            {keySignature && <span style={{ marginLeft: '0.5rem' }}>Key: {keySignature}</span>}
             <CloseButton onMouseDown={handleCloseClick}>×</CloseButton>
           </>
         )}
@@ -349,37 +435,40 @@ export const GenerateMusicIdeaButton: FC = () => {
             {
               !startRatingClicked ? (
                 <ToolbarButton onMouseDown={startRating}>
-                  Start Rating
+                  Start
                 </ToolbarButton>
               ) : (
                 <>
-                  <Label htmlFor="ratingInput">Rating</Label>
-                  <Select
-                    id="ratingInput"
-                    value={rating}
-                    onChange={(e) => setRating(parseInt(e.target.value))}
-                  >
-                    {[0, 1, 2, 3, 4, 5].map((value) => (
-                      <option key={value} value={value}>
-                        {value}
-                      </option>
-                    ))}
-                  </Select>
-                  <ToolbarButton onMouseDown={handleClick}>
-                    Send
-                  </ToolbarButton>
-                  <div>
-                    {midiFiles.map((file, index) => (
-                      <div key={index}>
-                        <a href={`http://127.0.0.1:5000/download_midi/${file}`} download>Download MIDI {index + 1}</a>
-                      </div>
-                    ))}
-                  </div>
+                  {
+                    fitnessChoice === 'Feedback' ? (
+                      <>
+                        <Label htmlFor="ratingInput">Rating</Label>
+                        <Select
+                          id="ratingInput"
+                          value={rating}
+                          onChange={(e) => setRating(parseInt(e.target.value))}
+                        >
+                          {[0, 1, 2, 3, 4, 5].map((value) => (
+                            <option key={value} value={value}>
+                              {value}
+                            </option>
+                          ))}
+                        </Select>
+                        <ToolbarButton onMouseDown={handleClick}>
+                          Send
+                        </ToolbarButton>
+                      </>
+                    ) :
+                      <>
+                        <ToolbarButton onMouseDown={handleAutomatedFitnessSteps}>
+                          Next
+                        </ToolbarButton>
+                      </>
+                  }
                 </>
 
               )
             }
-
           </>
         )}
       </div>

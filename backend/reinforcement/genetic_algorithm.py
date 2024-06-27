@@ -1,6 +1,6 @@
 from random import choices, randint, randrange, sample
 import random as rand
-from reinforcement.utils import create_melody
+from reinforcement.utils import create_melody, save_genome_to_midi
 
 
 KEYS = ["C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B"]

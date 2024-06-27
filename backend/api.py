@@ -7,9 +7,8 @@ from reinforcement.utils import save_genome_to_midi
 from reinforcement.genetic_algorithm import fitness_automated, run_evolution
 from pyo import *
 import os
-import asyncio
-os.environ['PYTHONUNBUFFERED'] = '1'
 
+os.environ['PYTHONUNBUFFERED'] = '1'
 
 app = Flask(__name__)
 CORS(app)
@@ -54,6 +53,20 @@ def send_genome():
         return "Failed to generate MIDI file", 500
 
 
+@app.route('/get_best_genome', methods=['GET'])
+def send_best_genome():
+    population_index = request.args.get('generation_index')
+    file_path = f"{folder}/{population_index}/best.mid"
+    print(file_path)
+    if file_path:
+        with open(file_path, 'rb') as f:
+            midi_content = f.read()
+        response = make_response(send_file(file_path, as_attachment=True, mimetype='audio/midi'))
+        return response
+    else:
+        return "Failed to generate MIDI file", 500
+
+
 @app.route('/generate_custom_melody', methods=['POST'])
 def generate_custom_melody():
     data = request.json
@@ -65,37 +78,75 @@ def generate_custom_melody():
     scale = data.get('scale', 'major')
     root = int(data.get('root', 4))
     population_size = int(data.get('population_size', 4))
+    number_of_generations = data.get('number_of_generations')
     print("population size:", population_size)
-    fitness_choice = data.get('fitness_choice', 'rating')
+    fitness_choice = data.get('fitness_choice')
+    print(fitness_choice)
 
     global folder
     num_mutations = DEFAULT_NUM_MUTATIONS
     mutation_probability = DEFAULT_MUTATION_PROBABILITY
     bpm = DEFAULT_BPM
-    fitness_func = fitness_automated if fitness_choice == 'a' else fitness_rating_mode
+    fitness_func = fitness_automated if fitness_choice == 'Automated' else fitness_rating_mode
 
+    best_genome = None
+    best_fitness = float('-inf')
+    previous_best_genome = None
+    previous_best_fitness = None
     folder = str(int(datetime.now().timestamp()))
     os.makedirs(folder, exist_ok=True)
     genome_length = bars * num_notes * BITS_PER_NOTE
     s = Server().boot()
+
+    generation_index = 0
+
     for population_id, population, next_generation, population_fitness in run_evolution(
-            population_size, genome_length, fitness_func, num_mutations, mutation_probability, bars,
-            num_notes, num_steps, pauses, key, scale, root, bpm
+            population_size, genome_length, fitness_func, num_mutations, mutation_probability,
+            bars, num_notes, num_steps, pauses, key, scale, root
     ):
         print(f"Population {population_id} done")
 
         print("Saving results...")
-        for i, genome in enumerate(population):
-            save_genome_to_midi(f"{folder}/{population_id}/{scale}-{key}-{i}.mid", genome, bars, num_notes, num_steps,
+        sorted_population = sorted(population_fitness, key=lambda x: x[1], reverse=True)
+        for i, (genome, fitness) in enumerate(sorted_population):
+            save_genome_to_midi(f"{folder}/{population_id}/{scale}-{key}-{i}.mid", genome, bars, num_notes,
+                                num_steps,
                                 pauses, key, scale, root, bpm)
+
+        new_best_genome = None
+        new_best_fitness = float('-inf')
+        for genome, fitness in sorted_population:
+            if fitness != previous_best_fitness:
+                new_best_genome = genome
+                new_best_fitness = fitness
+                break
+
+        if new_best_genome is None:
+            if len(sorted_population) > 1:
+                new_best_genome = sorted_population[1][0]
+                new_best_fitness = sorted_population[1][1]
+            else:
+                new_best_genome = sorted_population[0][0]
+                new_best_fitness = sorted_population[0][1]
+
+        best_genome = new_best_genome
+        best_fitness = new_best_fitness
+        previous_best_genome = best_genome
+        previous_best_fitness = best_fitness
+
+        if best_genome is not None:
+            save_genome_to_midi(f"{folder}/{population_id}/best.mid", best_genome, bars, num_notes,
+                                num_steps, pauses, key, scale,
+                                root, bpm)
         print("Done!")
 
-        running = input("Continue? [Y/n]") != "n"
-        if not running:
-            break
+        if generation_index >= number_of_generations:
+            return jsonify({'success': True})
+        else:
+            generation_index += 1
 
 
-def fitness_rating_mode(genome, bars, num_notes, num_steps, pauses, key, scale, root, population):
+def fitness_rating_mode(genome, bars, num_notes, num_steps, pauses, key, scale, root):
     if ratings:
         min_key = min(ratings.keys(), key=lambda x: int(x.split('-')[-1].split('.')[0]))
         min_value = ratings[min_key]
