@@ -139,9 +139,7 @@ export const GenerateMusicIdeaButton: FC = () => {
       const file = new File([midiBlob], filename, { type: 'audio/midi' });
 
       try {
-        console.log("SUNT IN TRY")
         await getSong(rootStore)(file);
-        // setGenomeIndex(genomeIndex + 1);
       } catch (e) {
         console.error((e as Error).message);
       }
@@ -466,7 +464,6 @@ export const GenerateMusicIdeaButton: FC = () => {
                       </>
                   }
                 </>
-
               )
             }
           </>

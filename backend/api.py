@@ -146,19 +146,6 @@ def generate_custom_melody():
             generation_index += 1
 
 
-def fitness_rating_mode(genome, bars, num_notes, num_steps, pauses, key, scale, root):
-    if ratings:
-        min_key = min(ratings.keys(), key=lambda x: int(x.split('-')[-1].split('.')[0]))
-        min_value = ratings[min_key]
-        del ratings[min_key]
-        print(f"Smallest index key found: {min_key}")
-        print(f"Corresponding value: {min_value}")
-        return min_value
-    else:
-        print("Dictionary 'ratings' is empty.")
-        return 0
-
-
 @app.route('/rate_melody', methods=['POST'])
 def rate_melody():
     try:
@@ -173,6 +160,21 @@ def rate_melody():
     except Exception as e:
         logging.error(f"Error rating melody: {e}")
         return jsonify({'error': str(e)}), 500
+
+def fitness_rating_mode(genome, bars, num_notes, num_steps, pauses, key, scale, root):
+    if ratings:
+        min_key = min(ratings.keys(), key=lambda x: int(x.split('-')[-1].split('.')[0]))
+        min_value = ratings[min_key]
+        del ratings[min_key]
+        print(f"Smallest index key found: {min_key}")
+        print(f"Corresponding value: {min_value}")
+        return min_value
+    else:
+        print("Dictionary 'ratings' is empty.")
+        return 0
+
+
+
 
 
 if __name__ == '__main__':
